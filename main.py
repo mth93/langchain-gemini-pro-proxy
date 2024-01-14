@@ -3,10 +3,9 @@ import uvicorn  # Import uvicorn for server launch
 
 from fastapi import FastAPI, Request, Depends, HTTPException
 from pydantic import BaseModel
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI,GoogleGenerativeAIEmbeddings
 from starlette.config import Config
 from langchain_core.messages import (
-    BaseMessage,
     HumanMessage,
     SystemMessage,
 )
@@ -39,6 +38,30 @@ class ChatCompletionRequest(BaseModel):
 
 class EmbeddingRequest(BaseModel):
     input: str
+
+
+def format_response_chat_completion(response):
+    formatted_response = {
+        "id": str(uuid.uuid4()),  # Generate unique ID
+        "object": "chat.completion",
+        "created": int(time.time()),  # Get current Unix timestamp
+        "model": response.llm_output.get("model", "gemini-pro"),  # Use model name from llm_output if available
+        "usage": response.llm_output.get("usage", {}),  # Extract usage data if available
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",  # Consistent role for Gemini responses
+                    "content": chat_generation.text  # Access text directly
+                },
+                "logprobs": None,
+                "finish_reason": chat_generation.generation_info.get("finish_reason", "stop"),
+                "index": 0,
+            }
+            for chat_generation in response.generations[0]  # Correctly access generations
+        ],
+    }
+    return formatted_response
+
 
 # Endpoints with LangChain integration
 @app.post("/v1/completions")
@@ -107,11 +130,9 @@ async def chat_completion(chat_completion_request: ChatCompletionRequest, api_ke
         raise HTTPException(status_code=500, detail=f"Error generating chat completion: {str(e)}")
 
 
-# @app.post("/v1/embeddings")
-# async def create_embeddings(embedding_request: EmbeddingRequest, api_key: str = Depends(get_api_key)):
-#     port = config("PORT", cast=int, default=8000)
-#     # Adapt this endpoint based on LangChain's capabilities or Gemini Pro's features
-
+@app.post("/v1/embeddings")
+async def create_embeddings(embedding_request: EmbeddingRequest, api_key: str = Depends(get_api_key)):
+    return False
 # Launch the API using uvicorn, setting the port here
 if __name__ == "__main__":
     port = config("GEMINI_API_PORT", cast=int, default=8000)  # Set the port only here
