@@ -14,7 +14,7 @@ import time
 config = Config(".env")
 
 # Set up logging
-logging.basicConfig(filename='my_api_logs.log',level=logging.DEBUG)  # Adjust logging level as needed
+logging.basicConfig(filename='api_logs.log',level=logging.DEBUG)  # Adjust logging level as needed
 
 app = FastAPI()
 
@@ -41,7 +41,6 @@ class EmbeddingRequest(BaseModel):
 
 
 def format_response_completion(input_response):
-    print(input_response)
     formatted_response = {
         "id": str(uuid.uuid4()),  # Generate unique ID
         "object": "text_completion",  # Match object type
