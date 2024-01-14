@@ -48,6 +48,9 @@ pip install -r requirements.txt
 3. Embeddings
     URL:/v1/embeddings
 
+for testing curl requests examples:
+https://platform.openai.com/docs/api-reference 
+
 ## Additional Notes
 
     The API uses the models/embedding-001 model for embedding generation. Adjust this if needed.
