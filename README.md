@@ -21,7 +21,7 @@ pip install -r requirements.txt
 ## Configuration
 
     Create a .env file in the project directory and set the following variables:
-        GOOGLE_API_KEY: Your Google API key with access to the relevant AI services.
+        OPENAI_API_KEY: Your Google API key with access to the relevant AI services.
         GEMINI_API_PORT (optional): The port on which to run the API (defaults to 8000).
 
 ## Usage
