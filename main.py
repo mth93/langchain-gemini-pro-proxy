@@ -1,6 +1,6 @@
 import logging
 import uvicorn  # Import uvicorn for server launch
-
+import uuid
 from fastapi import FastAPI, Request, Depends, HTTPException
 from pydantic import BaseModel
 from langchain_google_genai import ChatGoogleGenerativeAI,GoogleGenerativeAIEmbeddings
@@ -40,6 +40,28 @@ class EmbeddingRequest(BaseModel):
     input: str
 
 
+def format_response_completion(input_response):
+    print(input_response)
+    formatted_response = {
+        "id": str(uuid.uuid4()),  # Generate unique ID
+        "object": "text_completion",  # Match object type
+        "created": int(time.time()),  # Get current Unix timestamp
+        "model": "gpt-3.5-turbo-instruct",  # Hardcode model name (adjust if needed)
+        "system_fingerprint": "fp_44709d6fcb",  # Placeholder, update if available
+        "choices": [
+            {
+                "text": input_response.content,  # Extract text from input_response
+                "index": 0,
+                "logprobs": None,  # Not provided in input_response
+                "finish_reason": "length"  # Hardcode finish reason (adjust if needed)
+            }
+        ],
+        "usage":{}
+    }
+    return formatted_response
+
+
+
 def format_response_chat_completion(response):
     formatted_response = {
         "id": str(uuid.uuid4()),  # Generate unique ID
@@ -62,6 +84,32 @@ def format_response_chat_completion(response):
     }
     return formatted_response
 
+def format_embeddings(embeddings_response_example):
+  """Formats embeddings to match the OpenAI embeddings schema.
+
+  Args:
+    embeddings_response_example: A list of embedding values.
+
+  Returns:
+    A dictionary containing the formatted embeddings.
+  """
+  return {
+  "object": "list",
+  "data": [
+    {
+      "object": "embedding",
+      "embedding":embeddings_response_example,
+      "index": 0  
+    }
+  ],
+  "model": "text-embedding-ada-002",  
+  "usage": {
+    "prompt_tokens": int(len(embeddings_response_example)/3), 
+    "total_tokens": int(len(embeddings_response_example)/3) 
+  }
+}
+
+
 
 # Endpoints with LangChain integration
 @app.post("/v1/completions")
@@ -74,20 +122,21 @@ async def generate_text(completion_request: CompletionRequest, api_key: str = De
             google_api_key=api_key,
             max_output_tokens=completion_request.max_tokens,
             convert_system_message_to_human=True,
+            cache=False
         )
         response = llm.invoke(
-            prompt=completion_request.prompt,
+            input=completion_request.prompt,
             max_tokens=completion_request.max_tokens,
             temperature=completion_request.temperature,
         )
+        formatted_response = format_response_completion(response)
         logging.info(f"Generated text completion response: {response}")
-        return {"choices": [{"text": choice.content} for choice in response.choices]}
+        return formatted_response
 
     except Exception as e:
         logging.error(f"Error generating text completion: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error generating text completion: {str(e)}")
 
-import uuid  # Import uuid for generating unique IDs
 
 @app.post("/v1/chat/completions")
 async def chat_completion(chat_completion_request: ChatCompletionRequest, api_key: str = Depends(get_api_key)):
@@ -107,6 +156,7 @@ async def chat_completion(chat_completion_request: ChatCompletionRequest, api_ke
             google_api_key=api_key,
             max_output_tokens=chat_completion_request.max_tokens,
             convert_system_message_to_human=True,
+            cache=False
         )
         response = llm.generate(messages=[messages])
         logging.info(f"Generated chat completion response: {response}")
@@ -132,7 +182,26 @@ async def chat_completion(chat_completion_request: ChatCompletionRequest, api_ke
 
 @app.post("/v1/embeddings")
 async def create_embeddings(embedding_request: EmbeddingRequest, api_key: str = Depends(get_api_key)):
-    return False
+    """Creates embeddings for the given input text.
+
+    Args:
+        embedding_request: The request containing the input text.
+        api_key: The Google API key.
+
+    Returns:
+        A formatted dictionary containing the embeddings.
+    """
+
+    try:
+        embedding_model = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=api_key)
+        embeddings = embedding_model.embed_query(embedding_request.input)
+        formatted_embeddings = format_embeddings(embeddings)
+        return formatted_embeddings
+
+    except Exception as e:
+        logging.error(f"Error creating embeddings: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error creating embeddings: {str(e)}")
+
 # Launch the API using uvicorn, setting the port here
 if __name__ == "__main__":
     port = config("GEMINI_API_PORT", cast=int, default=8000)  # Set the port only here
